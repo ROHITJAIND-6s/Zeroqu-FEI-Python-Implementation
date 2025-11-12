@@ -106,9 +106,28 @@ All generated files will be saved in the `Output_Data` folder. This includes int
 The `run_all.py` script executes the following files in order:
 
 1.  **`1_Niche_Sheet.py`**: Calculates the `Niche_Score` from hardcoded values and saves it to `Output_Data/niche_settings.csv`.
+
+<br>
+
 2.  **`2_AHP_Sheet.py`**: Builds the AHP pairwise comparison matrix and saves the results to `Output_Data/ahp.csv`.
+
+<br>
+
+
 3.  **`3_Data_Sheet.py`**: Reads `Input_Data/data.csv` and `Input_Data/lkp_season.csv`, processes the raw data, and saves the combined `Output_Data/environmental.csv`.
+
+<br>
+
 4.  **`4_Entropy_Sheet.py`**: Calculates the Entropy weights (E\_j, d\_j, W\_j) from `environmental.csv` and saves `normalized.csv`, `proposition.csv`, and `entropy.csv` to `Output_Data/`.
+
+<br>
+
 5.  **`4.1_Entropy_Weight_Fix.py`**: A helper script to manually update the weights in `Output_Data/entropy.csv` (if needed).
+
+<br>
+
 6.  **`5_Weights_Sheet.py`**: Combines the weights from `ahp.csv` and `entropy.csv` using the `Alpha` constant and saves the final blended weights to `Output_Data/weights.csv`.
+
+<br>
+
 7.  **`6_FEI_Output_Sheet.py`**: The final step. It reads data from `environmental.csv`, `variables.csv`, and `weights.csv` to calculate the `Daily_FEI`, `FEI_Cum`, and `Risk_Band` for each row. The final report is saved as `Output_Data/FEI.csv`.

@@ -1,0 +1,9 @@
+Order,Display_Name,Column_Name,Norm_Type (inc/dec),Min,Max,Include (1/0)
+1,Idle_Ratio,Idle_Ratio,inc,0,1,1
+2,SST_degC,SST,inc,0,35,1
+3,Salinity_psu,Salinity,inc,0,40,1
+4,Speed_Ratio,Speed_Ratio,dec,0,1,1
+5,Coating_Age_months,Coat_Age,inc,0,60,1
+6,Region_Risk,Region_Risk,inc,0,1,1
+7,Season_Risk,Season_Risk,inc,0,1,1
+8,Niche_Score,Niche_Score,inc,0,1,1

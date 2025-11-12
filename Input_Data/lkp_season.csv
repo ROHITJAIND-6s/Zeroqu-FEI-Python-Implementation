@@ -1,0 +1,49 @@
+Key,Season,SeasonFactor
+N:01,Winter,0.6
+N:02,Winter,0.6
+N:03,Spring,0.8
+N:04,Spring,0.8
+N:05,Spring,0.8
+N:06,Summer,1
+N:07,Summer,1
+N:08,Summer,1
+N:09,Autumn,0.8
+N:10,Autumn,0.8
+N:11,Autumn,0.8
+N:12,Winter,0.6
+S:01,Summer,1
+S:02,Summer,1
+S:03,Autumn,0.8
+S:04,Autumn,0.8
+S:05,Autumn,0.8
+S:06,Winter,0.6
+S:07,Winter,0.6
+S:08,Winter,0.6
+S:09,Spring,0.8
+S:10,Spring,0.8
+S:11,Spring,0.8
+S:12,Summer,1
+NTrop:01,Tropical Dry,0.8
+NTrop:02,Tropical Dry,0.8
+NTrop:03,Tropical Dry,0.8
+NTrop:04,Tropical Dry,0.8
+NTrop:05,Tropical Dry,0.8
+NTrop:06,Tropical Wet,1
+NTrop:07,Tropical Wet,1
+NTrop:08,Tropical Wet,1
+NTrop:09,Tropical Wet,1
+NTrop:10,Tropical Wet,1
+NTrop:11,Tropical Wet,1
+NTrop:12,Tropical Dry,0.8
+STrop:01,Tropical Wet,1
+STrop:02,Tropical Wet,1
+STrop:03,Tropical Wet,1
+STrop:04,Tropical Wet,1
+STrop:05,Tropical Dry,0.8
+STrop:06,Tropical Dry,0.8
+STrop:07,Tropical Dry,0.8
+STrop:08,Tropical Dry,0.8
+STrop:09,Tropical Dry,0.8
+STrop:10,Tropical Dry,0.8
+STrop:11,Tropical Wet,1
+STrop:12,Tropical Wet,1

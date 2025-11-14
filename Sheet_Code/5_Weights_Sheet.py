@@ -58,7 +58,7 @@ def load_entropy_weights(filepath):
 
 def load_variables_config(filepath):
     """
-    MODIFIED: Loads 'Include' flag using 'Display_Name' as the key
+    Loads 'Include' flag using 'Display_Name' as the key
     and renames it to 'Variable' for merging.
     """
     try:
@@ -79,7 +79,61 @@ def load_variables_config(filepath):
         print(f"Error: Could not find 'Display_Name' or 'Include (1/0)' in '{filepath}'")
         return None
 
-# --- Main Script Execution ---
+def merge_dataframes(df_vars, df_ahp, df_entropy):
+    """
+    Merges the three loaded dataframes and handles NaN values.
+    """
+    # Merge, starting with df_vars to keep its order
+    df_final = pd.merge(df_vars, df_ahp, on="Variable", how="left")
+    df_final = pd.merge(df_final, df_entropy, on="Variable", how="left")
+    
+    # Handle NaNs that may result from the left merges
+    df_final['Include'] = df_final['Include'].fillna(0)
+    df_final['AHP_Weight'] = df_final['AHP_Weight'].fillna(0)
+    df_final['Entropy_Weight'] = df_final['Entropy_Weight'].fillna(0)
+    
+    return df_final
+
+def calculate_weights(df_merged, alpha):
+    """
+    Performs the final weight calculations.
+    """
+    # Create a copy to avoid modifying the original df
+    df_calc = df_merged.copy()
+    
+    # Column D: Final_Weight
+    df_calc['Final_Weight'] = (alpha * df_calc['AHP_Weight']) + \
+                             ((1 - alpha) * df_calc['Entropy_Weight'])
+    
+    # Column F: Active_Unnorm
+    df_calc['Active_Unnorm'] = df_calc['Final_Weight'] * df_calc['Include']
+    
+    # Column G: Final_Weight_Normalized
+    sum_active_unnorm = df_calc['Active_Unnorm'].sum()
+    
+    if sum_active_unnorm == 0:
+        df_calc['Final_Weight_Normalized'] = 0.0
+    else:
+        df_calc['Final_Weight_Normalized'] = df_calc['Active_Unnorm'] / sum_active_unnorm
+        
+    return df_calc
+
+def round_and_save_data(df_calculated, output_file, output_columns):
+    """
+    Rounds all numeric values, filters columns, and saves the final CSV.
+    """
+    # Apply rounding to all numeric columns
+    df_rounded = df_calculated.map(
+        lambda x: round(x, 3) if isinstance(x, (float, int)) and math.isfinite(x) else x
+    )
+    
+    # Filter to only the specified output columns
+    df_output = df_rounded[output_columns]
+    
+    # Save the final file
+    df_output.to_csv(output_file, index=False)
+    
+# --- Main Orchestration ---
 
 def main():
     """
@@ -95,35 +149,13 @@ def main():
         print("Aborting due to file loading errors.")
         return
 
-    # 2. Merge the DataFrames
-    df_final = pd.merge(df_vars, df_ahp, on="Variable", how="left")
-    df_final = pd.merge(df_final, df_entropy, on="Variable", how="left")
-    
-    # Handle NaNs
-    df_final['Include'] = df_final['Include'].fillna(0)
-    df_final['AHP_Weight'] = df_final['AHP_Weight'].fillna(0)
-    df_final['Entropy_Weight'] = df_final['Entropy_Weight'].fillna(0)
+    # 2. Merge DataFrames
+    df_merged = merge_dataframes(df_vars, df_ahp, df_entropy)
 
     # 3. Perform Calculations
-    df_final['Final_Weight'] = (ALPHA * df_final['AHP_Weight']) + \
-                             ((1 - ALPHA) * df_final['Entropy_Weight'])
-    
-    df_final['Active_Unnorm'] = df_final['Final_Weight'] * df_final['Include']
-    
-    sum_active_unnorm = df_final['Active_Unnorm'].sum()
-    
-    if sum_active_unnorm == 0:
-        df_final['Final_Weight_Normalized'] = 0.0
-    else:
-        df_final['Final_Weight_Normalized'] = df_final['Active_Unnorm'] / sum_active_unnorm
+    df_calculated = calculate_weights(df_merged, ALPHA)
         
-    # --- NEW STEP: Round all float values ---
-    # We apply rounding to all numeric columns before saving
-    df_final = df_final.map(
-        lambda x: round(x, 3) if isinstance(x, (float, int)) and math.isfinite(x) else x
-    )
-
-    # 4. Save the final file
+    # 4. Define output format and save
     output_columns = [
         'Variable',
         'AHP_Weight', 
@@ -134,11 +166,10 @@ def main():
         'Final_Weight_Normalized'
     ]
     
-    df_output = df_final[output_columns]
-    
-    df_output.to_csv(OUTPUT_FILE, index=False)
+    round_and_save_data(df_calculated, OUTPUT_FILE, output_columns)
     
     print(f"Successfully calculated and saved final weights to '{OUTPUT_FILE}'.")
+    print("All values rounded to 3 decimal places.")
 
 if __name__ == "__main__":
     main()

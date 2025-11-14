@@ -2,12 +2,12 @@ import pandas as pd
 
 # The new weights you want to use
 new_weights = [
-    0.124,
-    0.124,
-    0.129,
     0.125,
     0.125,
-    0.124,
+    0.125,
+    0.125,
+    0.125,
+    0.125,
     0.125,
     0.125
 ]

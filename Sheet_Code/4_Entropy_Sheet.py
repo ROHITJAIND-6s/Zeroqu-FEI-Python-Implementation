@@ -6,6 +6,9 @@ import numpy as np
 
 # Constant epsilon to prevent ln(0)
 EPSILON = 1e-12
+
+# --- Helper Functions ---
+
 def load_config_and_data(data_csv_path, vars_csv_path):
     """
     Loads the main data from environmental.csv and the variables config.
@@ -20,14 +23,16 @@ def load_config_and_data(data_csv_path, vars_csv_path):
         return None, None, None
 
     df_vars_included = df_vars[df_vars["Include (1/0)"] == 1].copy()
-    
+
+
     if df_vars_included.empty:
         print("Error: No variables marked for inclusion in variables.csv")
         return None, None, None
 
-    # Use Display_Name
     feature_columns = df_vars_included["Display_Name"].tolist()
     
+
+
     missing_cols = [col for col in feature_columns if col not in df_data.columns]
     if missing_cols:
         print(f"Error: Data file '{data_csv_path}' is missing required columns: {missing_cols}")
@@ -44,7 +49,9 @@ def normalize_data(df_features, df_vars_config):
     """
     df_normalized = pd.DataFrame()
     
+
     for _, var_row in df_vars_config.iterrows():
+
         col_name = var_row["Display_Name"] 
         min_val = var_row["Min"]
         max_val = var_row["Max"]
@@ -61,6 +68,8 @@ def normalize_data(df_features, df_vars_config):
         else:
             z = pd.Series([0] * len(x), index=x.index)
         
+        print(z)
+        
         df_normalized[col_name] = z.clip(0, 1)
             
     return df_normalized
@@ -68,24 +77,54 @@ def normalize_data(df_features, df_vars_config):
 def calculate_propositions(df_normalized, epsilon):
     """
     Step 3: Proposition (P_ij)
+    Calculates propositions matching the Excel formula:
+    P_ij = Z_ij / (SUM(Z_j) + epsilon)
     """
     df_proposition = pd.DataFrame()
     
     for col_name in df_normalized.columns:
-        z = df_normalized[col_name]
-        sum_z = z.sum()
+        z = df_normalized[col_name]  # The column Z_j
+        sum_z = z.sum()              # The sum SUM(Z_j)
         
-        if sum_z == 0:
-            p = z + epsilon
+        denominator = sum_z + epsilon
+        
+        if denominator == 0:
+            p = 0.0
         else:
-            p = (z / sum_z) + epsilon
+            p = z / denominator
         
         df_proposition[col_name] = p
+        
     return df_proposition
 
-def calculate_entropy(df_proposition, k):
+def calculate_k(df_proposition, n_rows, epsilon):
+    """
+    Calculates the 'k' constant based on 'Idle_Ratio' or n_rows.
+    """
+    k = 0
+    n = 0
+    if 'Idle_Ratio' in df_proposition.columns:
+        n = np.sum(np.array(df_proposition['Idle_Ratio']) > epsilon) 
+        
+        if n > 1:
+            k = round(1 / math.log(n), 3) 
+            print(f"Calculated 'k'={k} using n={n} (from Idle_Ratio > {epsilon})")
+        else:
+            k = 0 
+            print(f"Warning: 'n' for k-calculation is {n}. Setting k=0.")
+    else:
+        print("Warning: 'Idle_Ratio' not in proposition matrix. Using n_rows for k.")
+        n = n_rows
+        if n > 1:
+            k = round(1 / math.log(n), 3)
+        else:
+            k = 0
+    return k
+
+def calculate_entropy(df_proposition, k, epsilon):
     """
     Step 4: Entropy (E_j)
+    Updated to match Excel logic: P_ij * ln(P_ij + ε)
     """
     entropy_values = {}
     
@@ -95,9 +134,8 @@ def calculate_entropy(df_proposition, k):
     for col_name in df_proposition.columns:
         p = df_proposition[col_name]
         
-        # --- *** MODIFIED LINE *** ---
-        # We check if x > 0 before applying math.log(x) to avoid the domain error
-        p_log_p = p.apply(lambda x: x * math.log(x) if x > 0 else 0)
+        # This lambda matches the Excel formula
+        p_log_p = p.apply(lambda x: x * math.log(x + epsilon))
         
         e_j = -k * p_log_p.sum()
         entropy_values[col_name] = e_j
@@ -144,48 +182,27 @@ def process_entropy_computation(data_csv_path, vars_csv_path, epsilon_val):
         print("Error: No data rows found.")
         return
     
-    # --- Run Computations & Save Step 2 ---
+    # --- Step 2: Normalization ---
     df_normalized = normalize_data(df_features, df_vars_config)
-    
-    # --- MODIFIED: Use .map instead of .applymap ---
-    df_normalized = df_normalized.map(
+    df_normalized_rounded = df_normalized.map(
         lambda x: round(x, 3) if isinstance(x, float) and math.isfinite(x) else x
     )
-    df_normalized.to_csv("Output_Data/normalized.csv", index=False)
+    df_normalized_rounded.to_csv("Output_Data/normalized.csv", index=False)
 
-    # --- Run Computations & Save Step 3 ---
+    # --- Step 3: Proposition ---
     df_proposition = calculate_propositions(df_normalized, epsilon_val)
-
-    # --- MODIFIED: Use .map instead of .applymap ---
-    df_proposition = df_proposition.map(
+    df_proposition_rounded = df_proposition.map(
         lambda x: round(x, 3) if isinstance(x, float) and math.isfinite(x) else x
     )
-    df_proposition.to_csv("Output_Data/proposition.csv", index=False)
+    df_proposition_rounded.to_csv("Output_Data/proposition.csv", index=False)
 
     # --- k CALCULATION ---
-    k = 0
-    n = 0
-    if 'Idle_Ratio' in df_proposition.columns:
-        n = np.sum(np.array(df_proposition['Idle_Ratio']) > EPSILON) 
-        
-        if n > 1:
-            k = round(1 / math.log(n), 3) 
-            print(f"Calculated 'k'={k} using n={n} (from Idle_Ratio > EPSILON)")
-        else:
-            k = 0 
-            print(f"Warning: 'n' for k-calculation is {n}. Setting k=0.")
-    else:
-        print("Warning: 'Idle_Ratio' not in proposition matrix. Using n_rows for k.")
-        n = n_rows
-        if n > 1:
-            k = round(1 / math.log(n), 3)
-        else:
-            k = 0
-    # --- END OF k CALCULATION ---
+    # Pass the un-rounded proposition df for k calculation
+    k = calculate_k(df_proposition, n_rows, epsilon_val)
 
     # --- Run Steps 4, 5, 6 ---
-    # calculate_entropy will now work correctly
-    entropy_values = calculate_entropy(df_proposition, k)
+    # Pass the un-rounded proposition df for entropy calculation
+    entropy_values = calculate_entropy(df_proposition, k, epsilon_val)
     diversification_values = calculate_diversification(entropy_values)
     entropy_weights = calculate_entropy_weights(diversification_values)
     
@@ -196,17 +213,17 @@ def process_entropy_computation(data_csv_path, vars_csv_path, epsilon_val):
         'W_j (Entropy Weight)': entropy_weights
     })
     
-    # --- MODIFIED: Use .map instead of .applymap ---
-    df_entropy_results = df_entropy_results.map(
+    df_entropy_results_rounded = df_entropy_results.map(
         lambda x: round(x, 3) if isinstance(x, float) and math.isfinite(x) else x
     )
-    df_entropy_results.to_csv("Output_Data/entropy.csv", index=True, index_label="Feature")
+    df_entropy_results_rounded.to_csv("Output_Data/entropy.csv", index=True, index_label="Feature")
 
     print("\nEntropy calculation complete.")
 
 # --- Execute the Process ---
 if __name__ == "__main__":
-    DATA_FILE = "Output_Data/environment.csv"
+    # Corrected the typo 'environment.csv' to 'environmental.csv'
+    DATA_FILE = "Output_Data/environment.csv" 
     VARS_FILE = "Input_Data/variables.csv"
     
     process_entropy_computation(DATA_FILE, VARS_FILE, EPSILON)

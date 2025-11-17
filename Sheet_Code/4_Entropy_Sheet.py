@@ -68,9 +68,7 @@ def normalize_data(df_features, df_vars_config):
         else:
             z = pd.Series([0] * len(x), index=x.index)
         
-        print(z)
-        
-        df_normalized[col_name] = z.clip(0, 1)
+        df_normalized[col_name] = z
             
     return df_normalized
 
@@ -104,7 +102,7 @@ def calculate_k(df_proposition, n_rows, epsilon):
     k = 0
     n = 0
     if 'Idle_Ratio' in df_proposition.columns:
-        n = np.sum(np.array(df_proposition['Idle_Ratio']) > epsilon) 
+        n = np.sum(np.array(df_proposition['Idle_Ratio']) > 0) 
         
         if n > 1:
             k = round(1 / math.log(n), 3) 
@@ -124,7 +122,7 @@ def calculate_k(df_proposition, n_rows, epsilon):
 def calculate_entropy(df_proposition, k, epsilon):
     """
     Step 4: Entropy (E_j)
-    Updated to match Excel logic: P_ij * ln(P_ij + ε)
+    Updated : -k *  Sum(P_ij * ln(P_ij + ε))
     """
     entropy_values = {}
     
@@ -134,10 +132,10 @@ def calculate_entropy(df_proposition, k, epsilon):
     for col_name in df_proposition.columns:
         p = df_proposition[col_name]
         
-        # This lambda matches the Excel formula
+    
         p_log_p = p.apply(lambda x: x * math.log(x + epsilon))
-        
-        e_j = -k * p_log_p.sum()
+
+        e_j = -k * np.sum(p_log_p)
         entropy_values[col_name] = e_j
         
     return entropy_values

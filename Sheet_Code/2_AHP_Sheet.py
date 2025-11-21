@@ -3,17 +3,15 @@ import pandas as pd
 
 # Step 1 — Manual Inputs / Constants
 R_FACTOR = 1.3
-N_CRITERIA = 8
+N_CRITERIA = 6
 RI = 1.41  # Random Index for n=8
 
 # Ranking (Importance Order)
 RANKINGS = {
-    "Idle_Ratio": 8,
-    "SST_degC": 6,
-    "Salinity_psu": 7,
-    "Speed_Ratio": 3,
-    "Coating_Age_months": 5,
-    "Region_Risk": 4,
+    "Idle_Ratio": 6,
+    "SST_degC": 4,
+    "Salinity_psu": 5,
+    "Region_Risk": 3,
     "Season_Risk": 1,
     "Niche_Score": 2
 }

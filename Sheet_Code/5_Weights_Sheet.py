@@ -96,7 +96,7 @@ def merge_dataframes(df_vars, df_ahp, df_entropy):
 
 def calculate_weights(df_merged, alpha):
     """
-    Performs the final weight calculations.
+    Performs the final weight calculations and sums the normalized weights.
     """
     # Create a copy to avoid modifying the original df
     df_calc = df_merged.copy()
@@ -115,6 +115,15 @@ def calculate_weights(df_merged, alpha):
         df_calc['Final_Weight_Normalized'] = 0.0
     else:
         df_calc['Final_Weight_Normalized'] = df_calc['Active_Unnorm'] / sum_active_unnorm
+        
+    # --- NEW STEP: Calculate Total Weight (Single Value) ---
+    total_weight = df_calc['Final_Weight_Normalized'].sum()
+    
+    # Create the column with empty values (NaN) first
+    df_calc['Total_Weight'] = pd.NA
+    
+    # Assign the sum ONLY to the first row (index 0)
+    df_calc.loc[0, 'Total_Weight'] = total_weight
         
     return df_calc
 
@@ -163,12 +172,14 @@ def main():
         'Final_Weight', 
         'Include', 
         'Active_Unnorm', 
-        'Final_Weight_Normalized'
+        'Final_Weight_Normalized',
+        'Total_Weight'  # Column added
     ]
     
     round_and_save_data(df_calculated, OUTPUT_FILE, output_columns)
     
     print(f"Successfully calculated and saved final weights to '{OUTPUT_FILE}'.")
+    print("Added 'Total_Weight' (single value in first row).")
     print("All values rounded to 3 decimal places.")
 
 if __name__ == "__main__":

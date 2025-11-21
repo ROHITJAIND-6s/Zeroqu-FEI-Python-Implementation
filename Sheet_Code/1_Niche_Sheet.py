@@ -1,20 +1,13 @@
 import pandas as pd
 import math # Import math for isnan check
-
-# 1. Hardcode the data from the NicheSettings sheet
-data = [
-    {'Niche Area': 'Sea Chest', 'Weight': 0.25, 'Fouling Factor': 0.9},
-    {'Niche Area': 'Bow Thruster', 'Weight': 0.15, 'Fouling Factor': 0.8},
-    {'Niche Area': 'Stern Thruster', 'Weight': 0.1, 'Fouling Factor': 0.7},
-    {'Niche Area': 'Rudder', 'Weight': 0.1, 'Fouling Factor': 0.7},
-    {'Niche Area': 'Others', 'Weight': 0.4, 'Fouling Factor': 0.6},
-]
+# 1. Load the niche setup data
+data = pd.read_csv("Input_Data/niche_setup.csv")
 
 # 2. Create the main DataFrame for niche areas
 df_niche_areas = pd.DataFrame(data)
 
 # 3. Calculate 'Contribution' (Weight * Fouling_Factor) and round it
-df_niche_areas['Contribution'] = round(df_niche_areas['Weight'] * df_niche_areas['Fouling Factor'], 3)
+df_niche_areas['Contribution'] = round(df_niche_areas['Weight'] * df_niche_areas['Fouling Factor'] * df_niche_areas['Number'], 3)
 
 # 4. Calculate 'Niche_Score' (Sum of Contribution) and round it
 niche_score_value = round(df_niche_areas['Contribution'].sum(), 3)

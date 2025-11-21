@@ -3,7 +3,6 @@ import numpy as np
 import math
 
 # --- Configuration ---
-# Corrected typo: environment.csv -> environmental.csv
 ENV_FILE = "Output_Data/environment.csv" 
 VARS_FILE = "Input_Data/variables.csv"
 WEIGHTS_FILE = "Output_Data/weights.csv"
@@ -12,9 +11,7 @@ OUTPUT_FILE = "Output_Data/FEI.csv"
 # --- Loading Helper Functions ---
 
 def load_environmental_data(filepath):
-    """
-    Loads the main data from environmental.csv.
-    """
+    """Loads environment data and fills missing values for Date and Leg_ID."""
     try:
         df = pd.read_csv(filepath)
         df['Date'] = df['Date'].fillna("Unknown")
@@ -25,9 +22,7 @@ def load_environmental_data(filepath):
         return None
 
 def load_variables_config(filepath):
-    """
-    Loads the variables config (Min, Max, Norm_Type) using Display_Name as the key.
-    """
+    """Loads variable configuration (Min, Max, etc.) indexed by Display_Name."""
     try:
         df = pd.read_csv(filepath)
         df = df.set_index('Display_Name')
@@ -40,12 +35,10 @@ def load_variables_config(filepath):
         return None
 
 def load_final_weights(filepath):
-    """
-    Loads the final normalized weights from weights.csv.
-    """
+    """Loads final normalized weights indexed by Variable name."""
     try:
         df = pd.read_csv(filepath)
-        df = df.set_index('Variable') # 'Variable' column holds the Display_Name
+        df = df.set_index('Variable')
         return df[df['Include'] == 1]['Final_Weight_Normalized']
     except FileNotFoundError:
         print(f"Error: File not found '{filepath}'")
@@ -57,10 +50,7 @@ def load_final_weights(filepath):
 # --- Calculation Helper Functions ---
 
 def normalize_features(df_env, df_vars, s_weights):
-    """
-    Step 2: Normalization (Z_ij)
-    Normalizes all features based on the variables config.
-    """
+    """Normalizes features (Z_ij) based on Min/Max and inc/dec logic."""
     print("Normalizing features...")
     df_normalized = pd.DataFrame()
     for display_name, weight in s_weights.items():
@@ -90,10 +80,7 @@ def normalize_features(df_env, df_vars, s_weights):
     return df_normalized
 
 def calculate_weighted_contributions(df_normalized, s_weights):
-    """
-    Step 3: Weighted Feature Contribution
-    Multiplies each normalized feature by its final weight.
-    """
+    """Calculates weighted contribution for each feature."""
     print("Calculating weighted contributions...")
     df_weighted_contributions = pd.DataFrame()
     for display_name in df_normalized.columns:
@@ -101,34 +88,136 @@ def calculate_weighted_contributions(df_normalized, s_weights):
         df_weighted_contributions[display_name + "Wt"] = df_normalized[display_name] * weight
     return df_weighted_contributions
 
-def calculate_risk_band(score):
-    """
-    Step 7: Risk Band Classification
-    Categorizes the cumulative FEI score.
-    """
+def calculate_risk_band_standard(score):
+    """Determines standard risk band based on FEI score thresholds."""
     try:
         score = float(score)
     except (ValueError, TypeError):
-        return "Unknown" # Handle non-numeric
-        
-    if score < 2:
-        return "Low"
-    elif score < 4.5:
-        return "Moderate"
-    elif score < 7:
-        return "High"
-    else:
-        return "Very High"
+        return "Unknown"
+    if score < 2: return "Low"
+    elif score < 4.5: return "Moderate"
+    elif score < 7: return "High"
+    else: return "Very High"
 
-def calculate_all_fei_scores(df_base, df_weighted_contributions, s_weights):
-    """
-    Steps 4, 5, 6, and 7:
-    Calculates Daily_FEI, FEI_Cum, FEI_Cum_Selected, and Risk_Band.
-    """
-    print("Calculating FEI scores...")
+def calculate_risk_band_final(score):
+    """Determines final risk band based on new thresholds (20, 40, 60)."""
+    try:
+        score = float(score)
+    except (ValueError, TypeError):
+        return "Unknown"
+    
+    if score < 20: return "Low"
+    elif score < 40: return "Moderate"
+    elif score < 60: return "High"
+    else: return "Very High"
+
+def calculate_conditional_cumulative_fei(df_calc, idle_wt_column_name, df_weighted_contributions):
+    """Calculates cumulative FEI with reset logic: =IF(IdleWt=0, 0, Prev_Cum + Daily_FEI)."""
+    cumulative_values = []
+    prev_cum = 0.0
+    prev_leg = None
+    
+    if idle_wt_column_name in df_weighted_contributions:
+        idle_wts = df_weighted_contributions[idle_wt_column_name].fillna(0).values
+    else:
+        idle_wts = np.ones(len(df_calc)) 
+
+    daily_feis = df_calc['Daily_FEI'].fillna(0).values
+    leg_ids = df_calc['Leg_ID'].values
+
+    for i in range(len(df_calc)):
+        current_leg = leg_ids[i]
+        idle_wt = idle_wts[i]
+        daily_fei = daily_feis[i]
+
+        if current_leg != prev_leg:
+            prev_cum = 0.0
+
+        if idle_wt == 0:
+            current_cum = 0.0
+        else:
+            current_cum = prev_cum + daily_fei
+        
+        cumulative_values.append(current_cum)
+        prev_cum = current_cum
+        prev_leg = current_leg
+        
+    return cumulative_values
+
+def calculate_final_cumulative_fei(df_calc):
+    """Calculates continuous cumulative FEI without reset: Row N = Prev_Daily + Prev_Cum."""
+    cumulative_values = []
+    
+    # Trackers for previous values
+    prev_cum_final = 0.0
+    prev_daily_final = 0.0
+    
+    daily_finals = df_calc['Daily_FEI_Final'].fillna(0).values
+    
+    for i in range(len(df_calc)):
+        current_daily = daily_finals[i]
+        
+        if i == 0:
+            # First row of the entire file: Cum = Daily
+            current_cum = current_daily
+        else:
+            # Subsequent rows: Prev_Cum + Prev_Daily
+            current_cum = prev_cum_final + prev_daily_final
+            
+        cumulative_values.append(current_cum)
+        
+        # Update trackers
+        prev_cum_final = current_cum
+        prev_daily_final = current_daily
+        
+    return cumulative_values
+
+def calculate_extended_fei_metrics(df_scores, df_env):
+    """Computes Coating Risk, Hull Risk, Management Risk, and Final FEI metrics."""
+    print("Calculating Final Risk Metrics...")
+    df_calc = df_scores.copy()
+    
+    coating_eff = df_env.get('Coating_Effectiveness')
+    hull_maint = df_env.get('Hull_Maintenance_Score')
+    
+    if coating_eff is None or hull_maint is None:
+        print("Warning: Missing Effectiveness/Maintenance scores. Using NaNs.")
+        df_calc['Coating_Effectiveness'] = np.nan
+        df_calc['Hull_Maintenance_Score'] = np.nan
+    else:
+        df_calc['Coating_Effectiveness'] = coating_eff
+        df_calc['Hull_Maintenance_Score'] = hull_maint
+
+    # T: Coating_Risk_Factor
+    df_calc['Coating_Risk_Factor'] = df_calc['Coating_Effectiveness'].apply(
+        lambda x: np.nan if pd.isna(x) or x == "" else (1 + 0.5 * (1 - float(x)))
+    )
+
+    # U: Hull_Risk_Factor
+    df_calc['Hull_Risk_Factor'] = df_calc['Hull_Maintenance_Score'].apply(
+        lambda x: 1.0 if pd.isna(x) or x == "" else (1 + 0.5 * (1 - float(x)))
+    )
+
+    # V: Management_Risk_Factor
+    df_calc['Management_Risk_Factor'] = df_calc['Coating_Risk_Factor'] * df_calc['Hull_Risk_Factor']
+
+    # W: Daily_FEI_Final
+    df_calc['Daily_FEI_Final'] = df_calc['Daily_FEI'] * df_calc['Management_Risk_Factor']
+
+    # X: FEI_Cum_Final (Continuous accumulation)
+    df_calc['FEI_Cum_Final'] = calculate_final_cumulative_fei(df_calc)
+
+    # Y: Risk Band Final
+    df_calc['VesselFoulingExposure_Risk_Band_Final'] = df_calc['FEI_Cum_Final'].apply(calculate_risk_band_final)
+
+    return df_calc
+
+def calculate_all_fei_scores(df_base, df_weighted_contributions, s_weights, df_env):
+    """Orchestrates calculation of all FEI scores (Standard and Extended)."""
+    print("Calculating Standard FEI scores...")
     df_scores = df_base.copy()
     
-    # Step 4: Daily FEI Calculation
+    # --- Step 4: Daily FEI Calculation ---
     sum_final_weights = s_weights.sum()
     sum_weighted_contributions = df_weighted_contributions.sum(axis=1)
     
@@ -140,53 +229,60 @@ def calculate_all_fei_scores(df_base, df_weighted_contributions, s_weights):
     idle_wt_column_name = 'Idle_Ratio' + 'Wt'
     
     if idle_wt_column_name in df_weighted_contributions:
-        # Corrected typo in variable name here
+        # Only result in NaN if input is explicitly NaN. 0 is valid.
         df_scores['Daily_FEI'] = np.where(
-            df_weighted_contributions[idle_wt_column_name] == 0, 
-            0,
+            df_weighted_contributions[idle_wt_column_name].isna(),
+            np.nan, 
             potential_fei
         )
     else:
-        print(f"Warning: '{idle_wt_column_name}' not found. Calculating Daily_FEI without IF(K=0) check.")
         df_scores['Daily_FEI'] = potential_fei
 
-    # Step 5: Cumulative FEI
-    df_scores['FEI_Cum'] = df_scores.groupby('Leg_ID')['Daily_FEI'].cumsum()
-
-    # Step 6: FEI_Cum_Selected
-    df_scores['FEI_Cum_Selected'] = df_scores['FEI_Cum']
-
-    # Step 7: Risk Band Classification
-    df_scores['Risk_Band'] = df_scores['FEI_Cum_Selected'].apply(calculate_risk_band)
+    # --- Step 5: Cumulative FEI (Conditional) ---
+    print("Calculating Conditional Cumulative FEI...")
+    df_scores['FEI_Cum'] = calculate_conditional_cumulative_fei(
+        df_scores, idle_wt_column_name, df_weighted_contributions
+    )
     
-    return df_scores
+    # Step 6 & 7
+    df_scores['FEI_Cum_Selected'] = df_scores['FEI_Cum']
+    df_scores['Risk_Band'] = df_scores['FEI_Cum_Selected'].apply(calculate_risk_band_standard)
+    
+    # --- New Final FEI Metrics ---
+    df_final_scores = calculate_extended_fei_metrics(df_scores, df_env)
+    
+    return df_final_scores
 
 def assemble_final_dataframe(df_fei_scores, df_normalized, df_weighted_contributions):
-    """
-    Step 9: Assembles the final DataFrame in the correct column order.
-    """
+    """Combines normalized features, weighted contributions, and calculated scores into one DataFrame."""
+    score_cols = [
+        'Daily_FEI', 'FEI_Cum', 'FEI_Cum_Selected', 'Risk_Band',
+        'Coating_Effectiveness', 'Hull_Maintenance_Score',
+        'Coating_Risk_Factor', 'Hull_Risk_Factor', 
+        'Management_Risk_Factor', 'Daily_FEI_Final', 
+        'FEI_Cum_Final', 'VesselFoulingExposure_Risk_Band_Final'
+    ]
+    
+    existing_score_cols = [c for c in score_cols if c in df_fei_scores.columns]
+    
     return pd.concat([
         df_fei_scores[['Date', 'Leg_ID']],
         df_normalized,
         df_weighted_contributions,
-        df_fei_scores.drop(columns=['Date', 'Leg_ID'])
+        df_fei_scores[existing_score_cols]
     ], axis=1)
 
 def round_and_save(df_final_output, output_file):
-    """
-    Step 10: Rounds all numeric values to 3 decimals and saves to CSV.
-    """
+    """Rounds numeric values to 4 decimal places and saves to CSV."""
     df_rounded = df_final_output.map(
-        lambda x: round(x, 3) if isinstance(x, float) and math.isfinite(x) else x
+        lambda x: round(x, 4) if isinstance(x, (float, np.float64)) and math.isfinite(x) else x
     )
     df_rounded.to_csv(output_file, index=False)
 
 # --- Main Orchestration ---
 
 def main():
-    """
-    Main function to load all data, calculate FEI, and save the final report.
-    """
+    """Main execution flow to load data, calculate FEI, and save report."""
     
     # 1. Load all input files
     df_env = load_environmental_data(ENV_FILE)
@@ -206,8 +302,8 @@ def main():
     # 4. Calculate Weighted Feature Contribution
     df_weighted_contributions = calculate_weighted_contributions(df_normalized, s_weights)
 
-    # 5. Calculate all FEI scores
-    df_fei_scores = calculate_all_fei_scores(df_fei_base, df_weighted_contributions, s_weights)
+    # 5. Calculate all FEI scores (Standard + New Final Metrics)
+    df_fei_scores = calculate_all_fei_scores(df_fei_base, df_weighted_contributions, s_weights, df_env)
 
     # 6. Assemble the final DataFrame
     df_final_output = assemble_final_dataframe(df_fei_scores, df_normalized, df_weighted_contributions)

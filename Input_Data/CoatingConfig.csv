@@ -1,0 +1,9 @@
+Coating_Family,Design_Life_Months,Idle_Threshold_Days,Idle_Sensitivity,Application_Quality_Score
+INSOLUBLE,18,5,0.1,1
+SOLUBLE_CONV,24,5,0.08,1
+CDP,36,7,0.07,1
+SPC_STD,60,10,0.04,1
+SPC_EXT,84,12,0.03,1
+HYBRID_CDP_SPC,48,9,0.05,1
+FRC,72,3,0.1,1
+ULTRA_HARD,180,2,0.12,1

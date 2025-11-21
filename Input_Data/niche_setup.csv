@@ -1,0 +1,6 @@
+Niche Area,Weight,Fouling Factor,Number
+Sea Chest,0.25,0.9,1
+Bow Thruster,0.15,0.8,1
+Stern Thruster,0.1,0.7,1
+Rudder,0.1,0.7,1
+Others,0.4,0.6,1

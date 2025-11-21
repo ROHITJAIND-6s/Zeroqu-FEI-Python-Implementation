@@ -1,9 +1,7 @@
 Feature,E_j (Entropy),d_j (Diversification),W_j (Entropy Weight)
-Idle_Ratio,1.0,0.0,-0.001
-SST_degC,1.012,-0.012,0.047
-Salinity_psu,1.041,-0.041,0.165
-Speed_Ratio,1.044,-0.044,0.178
-Coating_Age_months,1.044,-0.044,0.178
-Region_Risk,1.02,-0.02,0.081
-Season_Risk,1.043,-0.043,0.173
-Niche_Score,1.044,-0.044,0.178
+Idle_Ratio,1.0,0.0,-0.002
+SST_degC,1.012,-0.012,0.078
+Salinity_psu,1.044,-0.044,0.294
+Region_Risk,1.007,-0.007,0.049
+Season_Risk,1.043,-0.043,0.286
+Niche_Score,1.044,-0.044,0.294
